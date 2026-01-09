@@ -1,11 +1,10 @@
-﻿private static readonly Dictionary<long, UserState> _states = new Dictionary<long, UserState>();
-
-using var cts = new CancellationTokenSource();
+﻿Dictionary<long, UserState> _states = new Dictionary<long, UserState>();
 
 using StreamReader telegramTokenReader = new StreamReader("/Users/alexsavyuk/RiderProjects/WeatherBotApp/" +
                                                           "WeatherBotApp/Token.txt");
 var telegramToken = await telegramTokenReader.ReadLineAsync();
 
+using var cts = new CancellationTokenSource();
 var bot = new TelegramBotClient(telegramToken!, cancellationToken: cts.Token);
 
 try
