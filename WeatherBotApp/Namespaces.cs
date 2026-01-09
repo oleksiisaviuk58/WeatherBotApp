@@ -3,4 +3,5 @@ global using Telegram.Bot.Polling;
 global using Telegram.Bot.Types;
 global using Telegram.Bot.Types.Enums;
 global using Telegram.Bot.Types.ReplyMarkups;
+global using System.Text.Json;
 global using System.Text.Json.Serialization;
