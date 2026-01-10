@@ -1,4 +1,5 @@
 ﻿Dictionary<long, UserState> _states = new Dictionary<long, UserState>();
+int _days = 0;
 
 using StreamReader telegramTokenReader = new StreamReader("/Users/alexsavyuk/RiderProjects/WeatherBotApp/" +
                                                           "WeatherBotApp/Token.txt");
@@ -39,15 +40,19 @@ async Task OnUpdate(Update update)
         switch (data)
         {
             case "today":
+                _days = 1;
                 break;
 
             case "tomorrow":
+                _days = 2;
                 break;
 
             case "3days":
+                _days = 3;
                 break;
 
             case "7days":
+                _days = 7;
                 break;
         }
 
@@ -62,69 +67,68 @@ async Task OnUpdate(Update update)
 
 async Task OnMessage(Message message, UpdateType type)
 {
-    //var message = update.Message;
     var chatId = message.Chat.Id;
     
-    if (message.Text == "/start")
-    {
-        var keyboard = new InlineKeyboardMarkup(new[]
-        {
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("⛅️ Сьогодні", "today"),
-                InlineKeyboardButton.WithCallbackData("🌦 Завтра", "tomorrow")
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("📅 3 дні", "3days"),
-                InlineKeyboardButton.WithCallbackData("📅 7 днів", "7days")
-            }
-        });
-
-        await bot.SendMessage(message.Chat, "Welcome!", replyMarkup: keyboard);
-        
-        _states[message.Chat.Id] = UserState.WaitingForDays;
-    }
+    if (message.Text == "/start") 
+        await SendInitialMessage(chatId);
     
-    if (_states.TryGetValue(chatId, out var state) && state == UserState.WaitingForLocation)
+    else if (!string.IsNullOrWhiteSpace(message.Text) && _states[chatId] == UserState.None) 
+        await SendInitialMessage(chatId);
+    
+    else if (_states.TryGetValue(chatId, out var state) && state == UserState.WaitingForLocation)
     {
         if (message.Location is not null)
         {
             var latitude = message.Location.Latitude;
             var longitude = message.Location.Longitude;
-                
-            //!!!!!!
+
+            var weather = WeatherService.GetFromCoordinates(latitude, longitude, _days);
+            await bot.SendMessage(chatId, weather.Result, replyMarkup: new ReplyKeyboardRemove());
+
         }
-        else if (TryParseCoordinates(message.Text, out var lat,  out var lon))
+        else if (GeoCodeService.TryParseCoordinates(message.Text, out var latitude,  out var longitude))
         {
-            //!!!!!!!
+            var weather = WeatherService.GetFromCoordinates(latitude, longitude, _days);
+            await bot.SendMessage(chatId, weather.Result, replyMarkup: new ReplyKeyboardRemove());
         }
             
         else if (!string.IsNullOrWhiteSpace(message.Text))
         {
             var city = message.Text.Trim();
-            //!!!!!!!!
+
+            var geocode = GeoCodeService.Get(city);
+            var weather = WeatherService.GetFromCityName(geocode.Result, _days);
+            await bot.SendMessage(chatId, weather.Result, replyMarkup: new ReplyKeyboardRemove());
         }
 
         else
         {
-            //!!!!!!
+            await bot.SendMessage(chatId, "Упппс, шось трапилось 🙄 Давай спочатку...", 
+                replyMarkup: new ReplyKeyboardRemove());
+            await SendInitialMessage(chatId);
         }
 
         _states[chatId] = UserState.None;
     }
 }
 
-bool TryParseCoordinates(string? text, out double lat, out double lon)
+async Task SendInitialMessage(long chatId)
 {
-    lat = lon = 0;
+    var keyboard = new InlineKeyboardMarkup(new[]
+    {
+        new[]
+        {
+            InlineKeyboardButton.WithCallbackData("⛅️ Сьогодні", "today"),
+            InlineKeyboardButton.WithCallbackData("🌦 Завтра", "tomorrow")
+        },
+        new[]
+        {
+            InlineKeyboardButton.WithCallbackData("📅 3 дні", "3days"),
+            InlineKeyboardButton.WithCallbackData("📅 7 днів", "7days")
+        }
+    });
 
-    if (string.IsNullOrWhiteSpace(text))
-        return false;
-
-    var parts = text.Split(',', ' ');
-    if (parts.Length < 2)
-        return false;
-
-    return double.TryParse(parts[0], out lat) && double.TryParse(parts[1], out lon);
+    await bot.SendMessage(chatId, "Welcome!", replyMarkup: keyboard);
+        
+    _states[chatId] = UserState.WaitingForDays;
 }

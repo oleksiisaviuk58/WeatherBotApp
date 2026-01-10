@@ -1,4 +1,4 @@
-namespace WeatherTelegramBotApp;
+namespace WeatherBotApp;
 
 public class WeatherService
 {
@@ -18,7 +18,7 @@ public class WeatherService
         return result;
     }
     
-    public static async Task<string> GetFromCoordinates(string latitude, string longitude, int days)
+    public static async Task<string> GetFromCoordinates(double latitude, double longitude, int days)
     {
         var _days = GetDays(days);
         

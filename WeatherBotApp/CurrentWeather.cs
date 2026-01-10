@@ -1,4 +1,4 @@
-namespace WeatherTelegramBotApp;
+namespace WeatherBotApp;
 
 public class CurrentWeather
 {
