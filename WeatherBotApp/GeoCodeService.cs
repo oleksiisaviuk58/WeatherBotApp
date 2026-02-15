@@ -6,22 +6,32 @@ public class GeoCodeService
     {
         string url = $"https://nominatim.openstreetmap.org/search?q={city}&format=json&limit=1&accept-language=uk";
         var geo = await HttpClientService.Get<GeoCode[]>(url);
+        
+        if (geo is null)
+            return new GeoCode();
 
         return geo[0];
     }
     
-    public static async Task<(string country, string city)> Get(double latitude, double longitude)
+    public static async Task<string> Get(double latitude, double longitude)
     {
-        string url = $"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json" +
-                     $"&accept-language=uk";
-        
-        var json = await HttpClientService.GetJson(url);
-        using var reader = JsonDocument.Parse(json);
-        
-        var city = reader.RootElement.GetProperty("address").GetProperty("city").GetString();
-        var country = reader.RootElement.GetProperty("address").GetProperty("country").GetString();
-        
-        return (country!, city!);
+        try
+        {
+            string url = $"https://nominatim.openstreetmap.org/reverse?" +
+                         $"lat={latitude.ToString(CultureInfo.InvariantCulture)}" +
+                         $"&lon={longitude.ToString(CultureInfo.InvariantCulture)}&format=json&accept-language=uk";
+
+            var json = await HttpClientService.GetJson(url);
+            using var reader = JsonDocument.Parse(json);
+            var address = reader.RootElement.GetProperty("display_name").GetString();
+            
+            return address;
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine(exception);
+            return default;
+        }
     }
     
     public static bool TryParseCoordinates(string? text, out double latitude, out double longitude)
@@ -30,7 +40,9 @@ public class GeoCodeService
 
         if (string.IsNullOrWhiteSpace(text))
             return false;
-
+        if (!Regex.IsMatch(text, "[0-9,.]"))
+            return false;
+        
         var parts = text.Split(',', ' ');
         if (parts.Length < 2)
             return false;

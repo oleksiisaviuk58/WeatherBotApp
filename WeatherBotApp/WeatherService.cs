@@ -7,56 +7,80 @@ public class WeatherService
         var _days = GetDays(days);
         
         string url =
-            $"https://api.open-meteo.com/v1/forecast?latitude={geoCode.Latitude}&longitude={geoCode.Longitude}" +
-            $"&current=temperature_2m,apparent_temperature,cloud_cover,visibility,wind_direction_10m,weather_code" +
-            $"&daily=temperature_2m_min,temperature_2m_max,weather_code" +
-            $"&timezone=auto&start_date={_days.start}&end_date={_days.end}";
+            $"https://api.open-meteo.com/v1/forecast?latitude={geoCode.Latitude.ToString(CultureInfo.InvariantCulture)}" +
+            $"&longitude={geoCode.Longitude.ToString(CultureInfo.InvariantCulture)}&current=temperature_2m," +
+            $"apparent_temperature,weather_code&daily=temperature_2m_min,temperature_2m_max,weather_code&timezone=auto" +
+            $"&start_date={_days.start}&end_date={_days.end}";
         var weather = await HttpClientService.Get<Weather>(url);
         
-        var result = CreateMessage(weather!, geoCode.Country);
+        if (weather is null) 
+            return "Упппс, шось трапилось 🙄 Давай спочатку...";
         
+        var result = CreateMessage(weather, geoCode.Country);
         return result;
     }
     
     public static async Task<string> GetFromCoordinates(double latitude, double longitude, int days)
     {
         var _days = GetDays(days);
-        
+
         string url =
-            $"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}" +
-            $"&current=temperature_2m,apparent_temperature,cloud_cover,visibility,wind_direction_10m,weather_code" +
-            $"&daily=temperature_2m_min,temperature_2m_max,weather_code" +
+            $"https://api.open-meteo.com/v1/forecast?latitude={latitude.ToString(CultureInfo.InvariantCulture)}" +
+            $"&longitude={longitude.ToString(CultureInfo.InvariantCulture)}&current=temperature_2m," +
+            $"apparent_temperature,weather_code&daily=temperature_2m_min,temperature_2m_max,weather_code" +
             $"&timezone=auto&start_date={_days.start}&end_date={_days.end}";
         var weather = await HttpClientService.Get<Weather>(url);
+        if (weather is null) 
+            return "Упппс, шось трапилось 🙄 Давай спочатку...";
 
-        var temp = await GeoCodeService.Get(latitude, longitude);
-        var result = CreateMessage(weather!, temp.city + ", " + temp.country);
-        
+        var address = await GeoCodeService.Get(latitude, longitude);
+        if (string.IsNullOrEmpty(address))
+            return "Упппс, шось трапилось 🙄 Давай спочатку...";
+
+        var result = CreateMessage(weather, address);
         return result;
     }
 
     private static (string start, string end) GetDays(int days)
     {
-        var start = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
-        var end = DateOnly.FromDateTime(DateTime.Today.AddDays(days - 1)).ToString("yyyy-MM-dd");
-
-        return (start, end);
+        var start = UrlFormat.Invariant(DateOnly.FromDateTime(DateTime.Today));
+        
+        if (days > 1)
+        {
+            var end = UrlFormat.Invariant(DateOnly.FromDateTime(DateTime.Today.AddDays(days - 1)));
+            return (start, end);
+        }
+        
+        return (start, start);
     }
 
     private static string CreateMessage(Weather weather, string city)
     {
-        string message = $"Місто: {city}\n" +
-                         $"\nЗАРАЗ\nТемпература: {weather.Current.Temperature}°C\n" +
-                         $"Відчувається як: {weather.Current.ApparentTemperature}°C\n";
-        
+        var sb = new StringBuilder();
+
+        sb.AppendLine($"📍 **{city}**");
+        sb.AppendLine("━━━━━━━━━━━━━━━");
+    
+        sb.AppendLine("⏰ **ЗАРАЗ**");
+        sb.AppendLine($"🌡 Температура: **{weather.Current.Temperature}°C**");
+        sb.AppendLine($"🤒 Відчувається як: **{weather.Current.ApparentTemperature}°C**");
+        sb.AppendLine($"🌥 Погода: **{WeatherCodeDiscription.Get(weather.Current.WeatherCode, true)}**");
+
+        sb.AppendLine();
+        sb.AppendLine("📅 **ПРОГНОЗ**");
+        sb.AppendLine("━━━━━━━━━━━━━━━");
+
         for (int i = 0; i < weather.Daily.Date.Count; i++)
         {
-            message += $"\nДата: {weather.Daily.Date[i]}\n" +
-                       $"Мінімальна температура: {weather.Daily.MinTemperature[i]}°C\n" +
-                       $"Максимальна температура: {weather.Daily.MaxTemperature[i]}°C\n" +
-                       $"Погода: {WeatherCodeDiscription.Map[weather.Daily.WeatherCode[i]]}\n";
+            sb.AppendLine($"🗓 **{weather.Daily.Date[i]}**");
+            sb.AppendLine($"🔻 Мін: {weather.Daily.MinTemperature[i]}°C");
+            sb.AppendLine($"🔺 Макс: {weather.Daily.MaxTemperature[i]}°C");
+            sb.AppendLine($"☁️ {WeatherCodeDiscription.Get(weather.Daily.WeatherCode[i], true)}");
+            sb.AppendLine("────────────────");
         }
 
-        return message;
+        sb.AppendLine("✨ Гарного дня та нехай погода буде на твоєму боці 😌");
+
+        return sb.ToString();
     }
 }

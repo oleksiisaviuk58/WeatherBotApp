@@ -7,7 +7,7 @@ public class GeoCode
     
     [JsonPropertyName("display_name")]
     public string Country { get; set; }
-    
+
     [JsonPropertyName("lat")]
     public string Latitude { get; set; }
     

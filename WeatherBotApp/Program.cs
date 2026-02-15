@@ -1,134 +1,185 @@
-﻿Dictionary<long, UserState> _states = new Dictionary<long, UserState>();
-int _days = 0;
+﻿using User = WeatherBotApp.User;
 
-using StreamReader telegramTokenReader = new StreamReader("/Users/alexsavyuk/RiderProjects/WeatherBotApp/" +
-                                                          "WeatherBotApp/Token.txt");
-var telegramToken = await telegramTokenReader.ReadLineAsync();
+ Dictionary<long, User> _users = new Dictionary<long, User>();
+ Dictionary<long, UserState> _states = new Dictionary<long, UserState>();
 
-using var cts = new CancellationTokenSource();
-var bot = new TelegramBotClient(telegramToken!, cancellationToken: cts.Token);
+ using StreamReader telegramTokenReader = new StreamReader("/Users/alexsavyuk/RiderProjects/WeatherBotApp/" +
+                                                           "WeatherBotApp/Token.txt");
+ var telegramToken = await telegramTokenReader.ReadLineAsync();
 
-try
-{
-    bot.OnError += OnError;
-    bot.OnMessage += OnMessage;
-    bot.OnUpdate += OnUpdate;
-    Console.WriteLine("Bot started!");
-    
-    Console.ReadLine();
-    Console.WriteLine("Bot ended!");
-}
-catch (Exception ex) { Console.WriteLine(ex.Message); }
-finally { cts.Cancel(); }
+ using var cts = new CancellationTokenSource();
+ var bot = new TelegramBotClient(telegramToken!, cancellationToken: cts.Token);
 
-Task OnError(Exception exception, HandleErrorSource source)
-{
-    throw new NotImplementedException();
-}
+ try
+ {
+     bot.OnError += OnError;
+     bot.OnUpdate += OnUpdate;
+     Console.WriteLine("Bot started!");
+     
+     async Task OnUpdate(Update update)
+     {
+         User _user;
+         if (update.CallbackQuery is not null)
+         {
+             var chatId = update!.CallbackQuery!.Message!.Chat.Id;
+             _user = GetUser(chatId);
 
-async Task OnUpdate(Update update)
-{
-    if (update.CallbackQuery is not null)
-    {
-        var callback = update.CallbackQuery;
-        await bot.AnswerCallbackQuery(callback.Id);
+             var callback = update.CallbackQuery;
+             await bot.AnswerCallbackQuery(callback.Id);
+             
+             _user.Days = callback.Data switch
+             {
+                 "today" => 1,
+                 "tomorrow" => 2,
+                 "3days" => 3,
+                 "7days" => 7,
+                 _ => 1
+             };
+             
+             await SendLocationMessage(_user.ChatId,  callback);
+         }
 
-        var chatId = callback.Message!.Chat.Id;
-        var messageId = callback.Message.MessageId;
-        var data = callback.Data;
+         else if (update.Message is not null)
+         {
+             var message = update.Message;
+             var chatId = update!.Message!.Chat.Id;
+             _user = GetUser(chatId);
+             
+             if (!string.IsNullOrWhiteSpace(message.Text) && message.Text == "/start")
+             { 
+                 await SendInitialMessage(_user.ChatId);
+             }
+             
+             else if (!string.IsNullOrWhiteSpace(message.Text) && _states[_user.ChatId] == UserState.None)
+             {
+                 await SendInitialMessage(_user.ChatId);
+             }
+             
+             else if (!string.IsNullOrWhiteSpace(message.Text) && _states[_user.ChatId] == UserState.WaitingForDays)
+             {
+                 _user.Days = Convert.ToInt32(message.Text.Trim());
 
-        switch (data)
-        {
-            case "today":
-                _days = 1;
-                break;
+                 await SendLocationMessage(_user.ChatId, update!.CallbackQuery!);
+             }
 
-            case "tomorrow":
-                _days = 2;
-                break;
+             else if (!string.IsNullOrWhiteSpace(message.Text) && _states[_user.ChatId] == UserState.WaitingForLocation)
+             { 
+                 _user.City = message.Text.Trim();
+                     
+                 var geocode = await GeoCodeService.Get(_user.City);
+                 var weather = await WeatherService.GetFromCityName(geocode, _user.Days);
+                 await bot.SendMessage(_user.ChatId, weather, replyMarkup: new ReplyKeyboardRemove());
+                 
+                 RemoveUser(_user.ChatId);
+             }
 
-            case "3days":
-                _days = 3;
-                break;
+             else if (!string.IsNullOrWhiteSpace(message.Text) 
+                      && GeoCodeService.TryParseCoordinates(message.Text, out var latitude, out var longitude)
+                      && _states[_user.ChatId] == UserState.WaitingForLocation)
+             { 
+                 _user.Latitude = latitude;
+                 _user.Longitude = longitude;
+                 
+                 var weather = await WeatherService.GetFromCoordinates(_user.Latitude, _user.Longitude, _user!.Days);
+                 await bot.SendMessage(_user.ChatId, weather, replyMarkup: new ReplyKeyboardRemove());
+                 
+                 RemoveUser(_user.ChatId);
+             }
+                 
+             else if (message.Location is not null && _states[_user.ChatId] == UserState.WaitingForLocation)
+             { 
+                 _user.Latitude = message.Location.Latitude;
+                 _user.Longitude = message.Location.Longitude;
+                 
+                 var weather = await WeatherService.GetFromCoordinates(_user.Latitude, _user.Longitude, _user.Days);
+                 await bot.SendMessage(_user.ChatId, weather, replyMarkup: new ReplyKeyboardRemove());
+                 
+                 RemoveUser(_user.ChatId);
+             }
+             
+             else if (!string.IsNullOrWhiteSpace(message.Text))
+             {
+                 await SendInitialMessage(_user.ChatId);
+             }
+         }
+     }
 
-            case "7days":
-                _days = 7;
-                break;
-        }
+     Task OnError(Exception exception, HandleErrorSource source) => throw (exception);
+     
+     Console.ReadLine();
+     Console.WriteLine("Bot ended!");
+ }
+ catch (Exception exception)
+ {
+     Console.WriteLine(exception.Message);
+ }
+ finally { cts.Cancel(); }
 
-        await bot.EditMessageText(chatId, messageId, "🌎 Надішли назву міста, координати або поділись своїми:", 
-            replyMarkup: null);
-        await bot.SendMessage(chatId, "👇👇👇",
-            replyMarkup: new KeyboardButton[] { KeyboardButton.WithRequestLocation("Share location") });
-        
-        _states[chatId] = UserState.WaitingForLocation;
-    }
-}
+ async Task SendLocationMessage(long chatId, CallbackQuery callback)
+ {
+     await bot.SendMessage(callback.Message!.Chat.Id,
+         "🌎 Надішли назву міста, координати або поділись своїми...",
+         replyMarkup: new ReplyKeyboardRemove());
 
-async Task OnMessage(Message message, UpdateType type)
-{
-    var chatId = message.Chat.Id;
-    
-    if (message.Text == "/start") 
-        await SendInitialMessage(chatId);
-    
-    else if (!string.IsNullOrWhiteSpace(message.Text) && _states[chatId] == UserState.None) 
-        await SendInitialMessage(chatId);
-    
-    else if (_states.TryGetValue(chatId, out var state) && state == UserState.WaitingForLocation)
-    {
-        if (message.Location is not null)
-        {
-            var latitude = message.Location.Latitude;
-            var longitude = message.Location.Longitude;
+     var locationKeyboard = new ReplyKeyboardMarkup(new[]
+     {
+         new KeyboardButton("Share location") { RequestLocation = true }
+     })
+     {
+         ResizeKeyboard = true,
+         OneTimeKeyboard = true
+     };
+     await bot.SendMessage(callback.Message!.Chat.Id, text: "👇 Please share your location to continue:",
+         replyMarkup: locationKeyboard);
 
-            var weather = WeatherService.GetFromCoordinates(latitude, longitude, _days);
-            await bot.SendMessage(chatId, weather.Result, replyMarkup: new ReplyKeyboardRemove());
+     _states[chatId] = UserState.WaitingForLocation;
+ }
+ 
+ async Task SendInitialMessage(long chatId)
+ {
+     var keyboard = new InlineKeyboardMarkup(new[]
+     {
+         new[]
+         {
+             InlineKeyboardButton.WithCallbackData("⛅️ Сьогодні", "today"),
+             InlineKeyboardButton.WithCallbackData("🌦 Завтра", "tomorrow")
+         },
+         new[]
+         {
+             InlineKeyboardButton.WithCallbackData("📅 3 дні", "3days"),
+             InlineKeyboardButton.WithCallbackData("📅 7 днів", "7days")
+         }
+     });
+     
+     _states[chatId] = UserState.WaitingForDays;
+     
+     await bot.SendMessage(chatId, "Welcome!", replyMarkup: keyboard);
+ }
 
-        }
-        else if (GeoCodeService.TryParseCoordinates(message.Text, out var latitude,  out var longitude))
-        {
-            var weather = WeatherService.GetFromCoordinates(latitude, longitude, _days);
-            await bot.SendMessage(chatId, weather.Result, replyMarkup: new ReplyKeyboardRemove());
-        }
-            
-        else if (!string.IsNullOrWhiteSpace(message.Text))
-        {
-            var city = message.Text.Trim();
+ bool RemoveUser(long chatId)
+ {
+     try
+     {
+         _users.Remove(chatId);
+         _states.Remove(chatId);
+         
+         return true;
+     }
+     catch (Exception exception)
+     {
+         Console.WriteLine(exception);
+         return false;
+     }
+ }
 
-            var geocode = GeoCodeService.Get(city);
-            var weather = WeatherService.GetFromCityName(geocode.Result, _days);
-            await bot.SendMessage(chatId, weather.Result, replyMarkup: new ReplyKeyboardRemove());
-        }
-
-        else
-        {
-            await bot.SendMessage(chatId, "Упппс, шось трапилось 🙄 Давай спочатку...", 
-                replyMarkup: new ReplyKeyboardRemove());
-            await SendInitialMessage(chatId);
-        }
-
-        _states[chatId] = UserState.None;
-    }
-}
-
-async Task SendInitialMessage(long chatId)
-{
-    var keyboard = new InlineKeyboardMarkup(new[]
-    {
-        new[]
-        {
-            InlineKeyboardButton.WithCallbackData("⛅️ Сьогодні", "today"),
-            InlineKeyboardButton.WithCallbackData("🌦 Завтра", "tomorrow")
-        },
-        new[]
-        {
-            InlineKeyboardButton.WithCallbackData("📅 3 дні", "3days"),
-            InlineKeyboardButton.WithCallbackData("📅 7 днів", "7days")
-        }
-    });
-
-    await bot.SendMessage(chatId, "Welcome!", replyMarkup: keyboard);
-        
-    _states[chatId] = UserState.WaitingForDays;
-}
+ User GetUser(long chatId)
+ {
+     if (_users.TryGetValue(chatId, out var _user)) 
+         return _user;
+     
+     _user = new User(chatId);
+     _users[chatId] = _user;
+     _states[chatId] = UserState.None;
+     
+     return _user;
+ }

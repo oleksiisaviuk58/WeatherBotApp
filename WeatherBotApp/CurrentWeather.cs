@@ -7,4 +7,7 @@ public class CurrentWeather
     
     [JsonPropertyName("apparent_temperature")]
     public double ApparentTemperature { get; set; }
+    
+    [JsonPropertyName("weather_code")]
+    public int WeatherCode { get; set; }
 }
