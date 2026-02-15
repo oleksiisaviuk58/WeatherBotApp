@@ -67,8 +67,8 @@ try
 
                 else
                 {
-                    await bot.SendMessage(_user.ChatId, "Число!!!!!", replyMarkup: new ReplyKeyboardRemove());
-                    Console.WriteLine($"[{DateTime.UtcNow}, {_user.ChatId}] {"Число!!!!!"}");
+                    await bot.SendMessage(_user.ChatId, "🤔 Слова гарні, але мені треба число 😄", replyMarkup: new ReplyKeyboardRemove());
+                    Console.WriteLine($"[{DateTime.UtcNow}, {_user.ChatId}] {"🤔 Слова гарні, але мені треба число 😄"}");
                     RemoveUser(_user.ChatId);
                 }
             }
@@ -165,13 +165,13 @@ async Task SendLocationMessage(long chatId, CallbackQuery callback)
 
     var locationKeyboard = new ReplyKeyboardMarkup(new[]
     {
-        new KeyboardButton("Share location") { RequestLocation = true }
+        new KeyboardButton("🗺️ Тицни — я знайду тебе") { RequestLocation = true }
     })
     {
         ResizeKeyboard = true,
         OneTimeKeyboard = true
     };
-    await bot.SendMessage(chatId, text: "👇 Please share your location to continue:", 
+    await bot.SendMessage(chatId, text: "📡 Дай координати, я зроблю магію з погодою ✨", 
         replyMarkup: locationKeyboard);
 
     _states[chatId] = UserState.WaitingForLocation;
