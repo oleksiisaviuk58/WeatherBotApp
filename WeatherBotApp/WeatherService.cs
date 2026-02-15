@@ -58,21 +58,21 @@ public class WeatherService
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine($"📍 **{city}**");
+        sb.AppendLine($"📍 *{city}*");
         sb.AppendLine("━━━━━━━━━━━━━━━");
     
-        sb.AppendLine("⏰ **ЗАРАЗ**");
-        sb.AppendLine($"🌡 Температура: **{weather.Current.Temperature}°C**");
-        sb.AppendLine($"🤒 Відчувається як: **{weather.Current.ApparentTemperature}°C**");
-        sb.AppendLine($"🌥 Погода: **{WeatherCodeDiscription.Get(weather.Current.WeatherCode, true)}**");
+        sb.AppendLine("⏰ *ЗАРАЗ*");
+        sb.AppendLine($"🌡 Температура: *{weather.Current.Temperature}°C*");
+        sb.AppendLine($"🤒 Відчувається як: *{weather.Current.ApparentTemperature}°C*");
+        sb.AppendLine($"🌥 Погода: *{WeatherCodeDiscription.Get(weather.Current.WeatherCode, true)}*");
 
         sb.AppendLine();
-        sb.AppendLine("📅 **ПРОГНОЗ**");
+        sb.AppendLine("📅 *ПРОГНОЗ*");
         sb.AppendLine("━━━━━━━━━━━━━━━");
 
         for (int i = 0; i < weather.Daily.Date.Count; i++)
         {
-            sb.AppendLine($"🗓 **{weather.Daily.Date[i]}**");
+            sb.AppendLine($"🗓 *{weather.Daily.Date[i]}*");
             sb.AppendLine($"🔻 Мін: {weather.Daily.MinTemperature[i]}°C");
             sb.AppendLine($"🔺 Макс: {weather.Daily.MaxTemperature[i]}°C");
             sb.AppendLine($"☁️ {WeatherCodeDiscription.Get(weather.Daily.WeatherCode[i], true)}");

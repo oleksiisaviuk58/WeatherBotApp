@@ -7,10 +7,16 @@ public class GeoCodeService
         string url = $"https://nominatim.openstreetmap.org/search?q={city}&format=json&limit=1&accept-language=uk";
         var geo = await HttpClientService.Get<GeoCode[]>(url);
         
-        if (geo is null)
-            return new GeoCode();
+        if (geo is null || geo.Length == 0)
+            return null;
 
-        return geo[0];
+        var result = geo[0];
+        
+        if (string.IsNullOrWhiteSpace(result.Latitude) ||
+            string.IsNullOrWhiteSpace(result.Longitude))
+            return null;
+
+        return result;
     }
     
     public static async Task<string> Get(double latitude, double longitude)
